@@ -435,6 +435,8 @@ public class LauncherActivity extends AppCompatActivity {
 						intent.setClassName(appInfo.pkg, appInfo.name);
 						intent.setFlags(FLAG_ACTIVITY_NEW_TASK);
 						intent.putExtra(INTENT_EXTRA_MODE, FermataApplication.get().getMirroringMode());
+						intent.putExtra(XposedEventDispatcherService.EXTRA_REGISTRATION_TOKEN,
+								XposedEventDispatcherService.createRegistrationToken(appInfo.pkg));
 						getContext().startActivity(intent);
 						MirrorDisplay.disableAccelRotation();
 					} catch (Exception err) {

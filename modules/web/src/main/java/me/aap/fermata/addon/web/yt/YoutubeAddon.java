@@ -3,6 +3,7 @@ package me.aap.fermata.addon.web.yt;
 import static me.aap.fermata.BuildConfig.AUTO;
 
 import android.content.Context;
+import android.net.Uri;
 
 import androidx.annotation.IdRes;
 import androidx.annotation.Keep;
@@ -15,6 +16,7 @@ import me.aap.fermata.addon.AddonInfo;
 import me.aap.fermata.addon.FermataAddon;
 import me.aap.fermata.addon.web.R;
 import me.aap.fermata.addon.web.WebBrowserAddon;
+import me.aap.fermata.addon.web.WebSecurity;
 import me.aap.fermata.ui.activity.MainActivityPrefs;
 import me.aap.utils.function.BooleanSupplier;
 import me.aap.utils.function.IntSupplier;
@@ -44,6 +46,16 @@ public class YoutubeAddon extends WebBrowserAddon implements PreferenceStore.Lis
 			Pref.b("YT_AUTO_HIGHEST_QUALITY", false);
 	private static final Pref<BooleanSupplier> YT_SKIP_ADD = AUTO ? Pref.b("YT_SKIP_ADD", true) : null;
 	private boolean ignorePrefChange;
+
+	@Override
+	protected boolean isJavascriptBridgeAllowed(Uri uri) {
+		return WebSecurity.isHostOrSubdomain(uri.getHost(), "youtube.com");
+	}
+
+	@Override
+	protected boolean acceptThirdPartyCookies() {
+		return true;
+	}
 
 	@IdRes
 	@Override

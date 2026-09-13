@@ -1,4 +1,4 @@
-## !!!Be aware of scam!!! The sites like https :// fermata-auto . com  are 100% scam. This app is free and opensource!
+## !!! Be aware of scam !!! The sites like https :// fermata-auto . com  are 100% scam. This app is free and open source!
 
 
 ## Fermata Media Player
@@ -46,9 +46,24 @@ find $PWD -name *.aab
 
 ### Build APK
 ```bash
-./gradlew bundleAutoRelease -PAPP_ID_SFX=.type.your.pkg.sfx.here
+./gradlew :fermata:packageAutoReleaseUniversalApk \
+  -PAPP_ID_SFX=.type.your.pkg.sfx.here
 find $PWD -name *.apk
 ```
+
+The default `full` module profile includes every available feature. Edit `module-profiles.gradle`
+to choose what the smaller core package contains. Build it with `-PMODULE_PROFILE=core`:
+
+```bash
+./gradlew :fermata:packageAutoDebugUniversalApk \
+  -PMODULE_PROFILE=core -PABI=arm64-v8a
+./gradlew :fermata:packageAutoReleaseUniversalApk \
+  -PMODULE_PROFILE=core -PABI=arm64-v8a \
+  -PAPP_ID_SFX=.type.your.pkg.sfx.here
+```
+
+Core artifacts include `-core` in their filename. Omitting `MODULE_PROFILE` continues to build
+the full package.
 
 ### Building in docker
 ```bash
@@ -58,15 +73,8 @@ Enter the requested key alias and password, when prompted.
 Build the required package using the above commands.
 To copy the built package to the host machine, open a new terminal and run:
 ```bash
+# To copy AAB
 docker cp Fermata:/home/mobiledevops/Fermata/fermata/build/outputs/bundle/autoRelease/ .
+# To copy APK
+docker cp Fermata:/home/mobiledevops/Fermata/fermata/build/outputs/apk/autoRelease/ .
 ```
-
-
-## Donation
-If you like the application, please consider making a donation:
-
-[PayPal](https://www.paypal.com/donate/?hosted_button_id=NP5Q3YDSCJ98N)
-
-[CloudTips](https://pay.cloudtips.ru/p/a03a73da)
-
-[Yandex Money](https://money.yandex.ru/to/410014661137336)

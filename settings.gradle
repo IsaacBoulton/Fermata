@@ -2,9 +2,19 @@ gradle.ext.modules = []
 def abi = gradle.startParameter.projectProperties.get('ABI')
 gradle.ext.abiFilters = (abi != null) ? abi.split(",") : ['arm64-v8a', 'armeabi-v7a', 'x86_64']
 
+apply from: file('module-profiles.gradle')
+def moduleProfiles = ext.moduleProfiles
+def moduleProfile = gradle.startParameter.projectProperties.getOrDefault('MODULE_PROFILE', 'full')
+        .toLowerCase(Locale.ROOT)
+if (!moduleProfiles.containsKey(moduleProfile)) {
+    throw new GradleException("Unknown MODULE_PROFILE '${moduleProfile}'. " +
+            "Available profiles: ${moduleProfiles.keySet().join(', ')}")
+}
+gradle.ext.moduleProfile = moduleProfile
+def includedModules = moduleProfiles[moduleProfile]
+
 gradle.ext.localProps = new Properties()
-gradle.ext.enableGoogleServices = (System.getenv('NO_GS') == null)
-        && file('fermata/google-services.json').isFile()
+gradle.ext.enableGoogleServices = (System.getenv('NO_GS') == null) && file('fermata/google-services.json').isFile()
 def localPropsFile = file('local.properties')
 if (localPropsFile.isFile()) {
     gradle.ext.localProps.load(localPropsFile.newDataInputStream())
@@ -30,6 +40,7 @@ include ':utils'
 project(':utils').projectDir = file('depends/utils')
 
 file('modules').eachDir {
+    if ((includedModules != null) && !includedModules.contains(it.name)) return
     def name = ':' + it.name
     if ((':gdrive' == name) && !gradle.ext.enableGoogleServices) return
     gradle.ext.modules.add(name)

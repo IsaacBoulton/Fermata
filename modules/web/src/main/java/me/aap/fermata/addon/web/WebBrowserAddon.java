@@ -2,6 +2,7 @@ package me.aap.fermata.addon.web;
 
 import android.content.Context;
 import android.content.SharedPreferences;
+import android.net.Uri;
 
 import androidx.annotation.IdRes;
 import androidx.annotation.Keep;
@@ -38,7 +39,7 @@ import me.aap.utils.ui.fragment.ActivityFragment;
 public class WebBrowserAddon implements FermataFragmentAddon, SharedPreferenceStore {
 	@NonNull
 	private static final AddonInfo info = FermataAddon.findAddonInfo(WebBrowserAddon.class.getName());
-	private static final Pref<Supplier<String>> LAST_URL = Pref.s("LAST_URL", "http://google.com");
+	private static final Pref<Supplier<String>> LAST_URL = Pref.s("LAST_URL", "https://google.com");
 	public static final int DARK_MODE_DISABLED = 0;
 	public static final int DARK_MODE_ENABLED = 1;
 	public static final int DARK_MODE_AUTO = 2;
@@ -196,6 +197,24 @@ public class WebBrowserAddon implements FermataFragmentAddon, SharedPreferenceSt
 
 	public boolean isAutoDark() {
 		return getPreferenceStore().getIntPref(getForceDarkPref()) == 2;
+	}
+
+	/** General browsing must not expose the native bridge to arbitrary pages. */
+	protected boolean isJavascriptBridgeAllowed(Uri uri) {
+		return false;
+	}
+
+	protected boolean isFileAccessAllowed() {
+		return false;
+	}
+
+	protected boolean acceptThirdPartyCookies() {
+		return false;
+	}
+
+	protected boolean isNavigationAllowed(Uri uri) {
+		String scheme = uri.getScheme();
+		return "http".equalsIgnoreCase(scheme) || "https".equalsIgnoreCase(scheme);
 	}
 
 	public Pref<BooleanSupplier> getDesktopVersionPref() {

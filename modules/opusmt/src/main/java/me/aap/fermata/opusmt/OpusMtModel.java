@@ -13,8 +13,8 @@ import me.aap.utils.io.IoUtils;
 class OpusMtModel {
 	private static final int MAX_OUTPUT_LEN = 100;
 	private static final float MAX_LEN_FACTOR = 1.5f;
-	private static final OrtEnvironment env = OrtEnvironment.getEnvironment();
 
+	private final OrtEnvironment env;
 	private final OrtSession encoder;
 	private final OrtSession decoder;
 	private final SentencePieceTokenizer srcTok;
@@ -24,6 +24,8 @@ class OpusMtModel {
 							SentencePieceTokenizer tgtTok) throws Exception {
 		this.srcTok = srcTok;
 		this.tgtTok = tgtTok;
+		env = OrtEnvironment.getEnvironment();
+		env.setTelemetry(false);
 		var opts = new OrtSession.SessionOptions();
 		try {opts.addNnapi();} catch (Exception ignored) {}
 		this.encoder = env.createSession(encoder.getAbsolutePath(), opts);

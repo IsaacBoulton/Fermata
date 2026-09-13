@@ -28,6 +28,7 @@ public class FermataWebClient extends WebViewClientCompat {
 
 	@Override
 	public void onPageStarted(WebView view, String url, Bitmap favicon) {
+		((FermataWebView) view).pageStarted(url);
 		if (loading != null) {
 			loading.accept(true);
 		} else {
@@ -57,7 +58,13 @@ public class FermataWebClient extends WebViewClientCompat {
 
 	@Override
 	public boolean shouldOverrideUrlLoading(@NonNull WebView view,
-																					@NonNull WebResourceRequest request) {
+																	@NonNull WebResourceRequest request) {
+		FermataWebView fermataView = (FermataWebView) view;
+		if (!fermataView.getAddon().isNavigationAllowed(request.getUrl())) {
+			Log.e("Blocked navigation outside the web app origin: ", request.getUrl());
+			fermataView.navigationBlocked(request.getUrl());
+			return true;
+		}
 		if (isYoutubeUri(request.getUrl())) {
 			try {
 				MainActivityDelegate a =
@@ -77,17 +84,22 @@ public class FermataWebClient extends WebViewClientCompat {
 
 	public static boolean isYoutubeUri(Uri uri) {
 		String host = uri.getHost();
-		return ((host != null) && ((host.endsWith("youtube.com") && !host.endsWith("tv.youtube.com")) ||
-				host.equals("youtu.be")));
+		return (WebSecurity.isHostOrSubdomain(host, "youtube.com") &&
+				!WebSecurity.isHostOrSubdomain(host, "tv.youtube.com")) || "youtu.be".equalsIgnoreCase(host);
 	}
 
 	@Override
 	public void onReceivedError(@NonNull WebView view, @NonNull WebResourceRequest request,
-															@NonNull WebResourceErrorCompat error) {
+														@NonNull WebResourceErrorCompat error) {
+		if (!request.isForMainFrame()) return;
+		MainActivityDelegate.getActivityDelegate(view.getContext())
+				.onSuccess(a -> a.setContentLoading(Completed.completedVoid()));
 		if (WebViewFeature.isFeatureSupported(WebViewFeature.WEB_RESOURCE_ERROR_GET_DESCRIPTION)) {
 			Log.e("Web error received: " + error.getDescription());
+			((FermataWebView) view).pageLoadFailed(error.getDescription());
 		} else {
 			Log.e("Web error received");
+			((FermataWebView) view).pageLoadFailed("Unknown error");
 		}
 
 		super.onReceivedError(view, request, error);

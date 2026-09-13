@@ -2,11 +2,14 @@ package me.aap.fermata.provider;
 
 import static android.content.ContentResolver.SCHEME_ANDROID_RESOURCE;
 import static android.content.ContentResolver.SCHEME_CONTENT;
+import static android.content.Context.MODE_PRIVATE;
 import static android.os.ParcelFileDescriptor.MODE_READ_ONLY;
+import static android.util.Base64.NO_WRAP;
 import static android.util.Base64.URL_SAFE;
-import static java.nio.charset.StandardCharsets.US_ASCII;
+import static java.nio.charset.StandardCharsets.UTF_8;
 
 import android.content.ContentProvider;
+import android.content.ClipDescription;
 import android.content.ContentValues;
 import android.database.Cursor;
 import android.database.MatrixCursor;
@@ -19,6 +22,12 @@ import androidx.annotation.Nullable;
 
 import java.io.File;
 import java.io.FileNotFoundException;
+import java.security.GeneralSecurityException;
+import java.security.MessageDigest;
+import java.security.SecureRandom;
+
+import javax.crypto.Mac;
+import javax.crypto.spec.SecretKeySpec;
 
 import me.aap.fermata.BuildConfig;
 import me.aap.fermata.FermataApplication;
@@ -34,6 +43,10 @@ import me.aap.utils.log.Log;
 public class FermataContentProvider extends ContentProvider {
 	private static final String IMG_PREF = "content://" + BuildConfig.APPLICATION_ID + "/image/";
 	private static final String ADDON_PREF = "content://" + BuildConfig.APPLICATION_ID + "/addon/";
+	private static final String TOKEN_PARAM = "t";
+	private static final String SIGNING_PREFS = "content_provider";
+	private static final String SIGNING_KEY = "uri_signing_key";
+	private static volatile byte[] signingKey;
 
 	public static boolean isSupportedFileScheme(String scheme) {
 		if (scheme == null) return false;
@@ -45,36 +58,53 @@ public class FermataContentProvider extends ContentProvider {
 
 	public static Uri toImgUri(Uri uri) {
 		var u = uri.toString();
-		if (u.startsWith(IMG_PREF)) return uri;
-		String enc = Base64.encodeToString(u.getBytes(US_ASCII), URL_SAFE);
-		return Uri.parse(IMG_PREF + enc);
+		if (u.startsWith(IMG_PREF)) {
+			if (hasValidToken(uri)) return uri;
+			UriInfo legacy = UriInfo.parseUnsigned(unsigned(uri));
+			if (legacy != null) return toImgUri(legacy.getUri());
+		}
+		String enc = Base64.encodeToString(u.getBytes(UTF_8), URL_SAFE | NO_WRAP);
+		return sign(Uri.parse(IMG_PREF + enc));
 	}
 
 	public static Uri toAddonUri(String addon, Uri uri, @Nullable String displayName) {
 		var u = uri.toString();
-		if (u.startsWith(ADDON_PREF)) return uri;
-		String enc = Base64.encodeToString(u.getBytes(US_ASCII), URL_SAFE);
+		if (u.startsWith(ADDON_PREF)) {
+			if (hasValidToken(uri)) return uri;
+			UriInfo legacy = UriInfo.parseUnsigned(unsigned(uri));
+			if (legacy != null) return toAddonUri(addon, legacy.getUri(), displayName);
+		}
+		String enc = Base64.encodeToString(u.getBytes(UTF_8), URL_SAFE | NO_WRAP);
 		u = ADDON_PREF + addon + '/' + enc;
-		if (displayName != null) u = u + '/' + displayName;
-		return Uri.parse(u);
+		if (displayName != null) u = u.concat("/").concat(displayName);
+		return sign(Uri.parse(u));
 	}
 
 	@Nullable
 	public static String getOrigUri(String u) {
-		var i = UriInfo.parse(u);
+		Uri uri = Uri.parse(u);
+		var i = UriInfo.parse(uri);
+		if ((i == null) && (u.startsWith(IMG_PREF) || u.startsWith(ADDON_PREF))) {
+			i = UriInfo.parseUnsigned(unsigned(uri));
+		}
 		return (i == null) ? null : i.getUri().toString();
 	}
 
 	@Nullable
 	@Override
 	public String[] getStreamTypes(@NonNull Uri uri, @NonNull String mimeTypeFilter) {
-		return new String[]{"image/*"};
+		UriInfo info = UriInfo.parse(uri);
+		if (info == null) return null;
+		String type = info.getType();
+		return ((type != null) && ClipDescription.compareMimeTypes(type, mimeTypeFilter)) ?
+				new String[]{type} : null;
 	}
 
 	@Nullable
 	@Override
 	public ParcelFileDescriptor openFile(@NonNull Uri uri, @NonNull String mode)
 			throws FileNotFoundException {
+		if (!"r".equals(mode)) throw new FileNotFoundException("Read-only provider");
 		UriInfo info = UriInfo.parse(uri);
 		if (info == null) throw new FileNotFoundException(uri.toString());
 		String pref = info.getPref();
@@ -84,9 +114,11 @@ public class FermataContentProvider extends ContentProvider {
 			String s = u.getScheme();
 			if (s == null) throw new FileNotFoundException(uri.toString());
 
-			switch (s) {
+				switch (s) {
 				case "file" -> {
-					return ParcelFileDescriptor.open(new File(u.toString().substring(6)), MODE_READ_ONLY);
+					String path = u.getPath();
+					if (path == null) throw new FileNotFoundException(uri.toString());
+					return ParcelFileDescriptor.open(new File(path), MODE_READ_ONLY);
 				}
 				case "http", "https" -> {
 					try {
@@ -115,6 +147,52 @@ public class FermataContentProvider extends ContentProvider {
 		return true;
 	}
 
+	private static Uri sign(Uri uri) {
+		String unsigned = unsigned(uri);
+		return uri.buildUpon().appendQueryParameter(TOKEN_PARAM, signature(unsigned)).build();
+	}
+
+	private static boolean hasValidToken(Uri uri) {
+		String token = uri.getQueryParameter(TOKEN_PARAM);
+		if (token == null) return false;
+		return MessageDigest.isEqual(token.getBytes(UTF_8),
+				signature(unsigned(uri)).getBytes(UTF_8));
+	}
+
+	private static String unsigned(Uri uri) {
+		return uri.buildUpon().clearQuery().fragment(null).build().toString();
+	}
+
+	private static String signature(String value) {
+		try {
+			Mac mac = Mac.getInstance("HmacSHA256");
+			mac.init(new SecretKeySpec(getSigningKey(), "HmacSHA256"));
+			return Base64.encodeToString(mac.doFinal(value.getBytes(UTF_8)), URL_SAFE | NO_WRAP);
+		} catch (GeneralSecurityException ex) {
+			throw new IllegalStateException("Unable to sign content URI", ex);
+		}
+	}
+
+	private static synchronized byte[] getSigningKey() {
+		if (signingKey != null) return signingKey;
+		var prefs = FermataApplication.get().getSharedPreferences(SIGNING_PREFS, MODE_PRIVATE);
+		String encoded = prefs.getString(SIGNING_KEY, null);
+		if (encoded != null) {
+			try {
+				return signingKey = Base64.decode(encoded, URL_SAFE | NO_WRAP);
+			} catch (IllegalArgumentException ignore) {
+			}
+		}
+
+		byte[] key = new byte[32];
+		new SecureRandom().nextBytes(key);
+		encoded = Base64.encodeToString(key, URL_SAFE | NO_WRAP);
+		if (!prefs.edit().putString(SIGNING_KEY, encoded).commit()) {
+			Log.e("Failed to persist the content URI signing key");
+		}
+		return signingKey = key;
+	}
+
 	@Nullable
 	@Override
 	public Cursor query(@NonNull Uri uri, @Nullable String[] projection, @Nullable String selection,
@@ -136,7 +214,7 @@ public class FermataContentProvider extends ContentProvider {
 	@Nullable
 	@Override
 	public Uri insert(@NonNull Uri uri, @Nullable ContentValues values) {
-		return uri;
+		throw new UnsupportedOperationException("Read-only provider");
 	}
 
 	@Override
@@ -166,30 +244,35 @@ public class FermataContentProvider extends ContentProvider {
 
 		@Nullable
 		static UriInfo parse(Uri uri) {
-			return parse(uri.toString());
+			return hasValidToken(uri) ? parseUnsigned(unsigned(uri)) : null;
 		}
 
-		static UriInfo parse(String uri) {
-			if (uri.startsWith(IMG_PREF)) {
-				return new UriInfo(
-						new String(Base64.decode(uri.substring(IMG_PREF.length()), URL_SAFE), US_ASCII),
-						IMG_PREF, null, null);
-			} else if (uri.startsWith(ADDON_PREF)) {
-				int idx = uri.indexOf('/', ADDON_PREF.length());
-				if (idx < 0) return null;
-				String name = uri.substring(ADDON_PREF.length(), idx);
-				FermataAddon a = AddonManager.get().getAddon(name);
-				if (!(a instanceof FermataContentAddon)) return null;
-				int end = uri.lastIndexOf('/');
-
-				if (end == idx) {
-					return new UriInfo(new String(Base64.decode(uri.substring(idx + 1), URL_SAFE), US_ASCII),
-							ADDON_PREF, null, (FermataContentAddon) a);
-				} else {
+		private static UriInfo parseUnsigned(String uri) {
+			try {
+				if (uri.startsWith(IMG_PREF)) {
 					return new UriInfo(
-							new String(Base64.decode(uri.substring(idx + 1, end), URL_SAFE), US_ASCII),
-							ADDON_PREF, uri.substring(end + 1), (FermataContentAddon) a);
+							new String(Base64.decode(uri.substring(IMG_PREF.length()), URL_SAFE), UTF_8),
+							IMG_PREF, null, null);
+				} else if (uri.startsWith(ADDON_PREF)) {
+					int idx = uri.indexOf('/', ADDON_PREF.length());
+					if (idx < 0) return null;
+					String name = uri.substring(ADDON_PREF.length(), idx);
+					FermataAddon a = AddonManager.get().getAddon(name);
+					if (!(a instanceof FermataContentAddon)) return null;
+					int end = uri.lastIndexOf('/');
+
+					if (end == idx) {
+						return new UriInfo(
+								new String(Base64.decode(uri.substring(idx + 1), URL_SAFE), UTF_8),
+								ADDON_PREF, null, (FermataContentAddon) a);
+					} else {
+						return new UriInfo(
+								new String(Base64.decode(uri.substring(idx + 1, end), URL_SAFE), UTF_8),
+								ADDON_PREF, uri.substring(end + 1), (FermataContentAddon) a);
+					}
 				}
+			} catch (IllegalArgumentException ex) {
+				Log.d(ex, "Invalid content URI");
 			}
 
 			return null;

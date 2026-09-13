@@ -33,6 +33,7 @@ import android.content.res.Configuration;
 import android.os.Build;
 import android.os.Build.VERSION;
 import android.os.Build.VERSION_CODES;
+import android.os.Bundle;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
@@ -92,8 +93,7 @@ public class Xposed implements IXposedHookLoadPackage {
 			protected void afterHookedMethod(MethodHookParam param) {
 				var a = (Activity) param.thisObject;
 				debug("onStart: ", a);
-				register(a);
-				handleIntent(a, a.getIntent());
+				register(a, a.getIntent());
 			}
 		});
 		findAndHookMethod(Activity.class, "onResume", new XC_MethodHook() {
@@ -144,27 +144,28 @@ public class Xposed implements IXposedHookLoadPackage {
 				if (!intent.hasExtra(INTENT_EXTRA_MODE)) return;
 				var a = (Activity) param.thisObject;
 				debug("onNewIntent: ", a);
-				handleIntent(a, intent);
+				register(a, intent);
 			}
 		});
 	}
 
 	private static void register(Activity a) {
+		register(a, null);
+	}
+
+	private static void register(Activity a, Intent intent) {
 		var con = (EventServiceConnection) getAdditionalInstanceField(a, EV_SRV_CON_FIELD);
 		if (con == null) {
 			con = new EventServiceConnection(a);
 			setAdditionalInstanceField(a, EV_SRV_CON_FIELD, con);
 		}
-		con.register();
-	}
-
-	private static void handleIntent(Activity a, Intent intent) {
-		if (intent == null) return;
-		var con = (EventServiceConnection) getAdditionalInstanceField(a, EV_SRV_CON_FIELD);
-		if (con != null) {
+		if (intent != null) {
 			con.mirroringMode = intent.getIntExtra(INTENT_EXTRA_MODE, 0);
+			con.registrationToken = intent.getLongExtra(
+					XposedEventDispatcherService.EXTRA_REGISTRATION_TOKEN, 0L);
 			con.configureActivity();
 		}
+		con.register();
 	}
 
 	private static void debug(Object... msg) {
@@ -193,6 +194,7 @@ public class Xposed implements IXposedHookLoadPackage {
 		private Messenger messenger;
 		private int registrationKey;
 		private int mirroringMode;
+		private long registrationToken;
 		private boolean connecting;
 		private boolean registered;
 
@@ -298,6 +300,11 @@ public class Xposed implements IXposedHookLoadPackage {
 				var msg =
 						Message.obtain(null, XposedEventDispatcherService.MSG_REGISTER, registrationKey, 0);
 				msg.replyTo = this.replyTo;
+				var data = new Bundle();
+				data.putString(XposedEventDispatcherService.EXTRA_CALLING_PACKAGE,
+						activity.getPackageName());
+				data.putLong(XposedEventDispatcherService.EXTRA_REGISTRATION_TOKEN, registrationToken);
+				msg.setData(data);
 				messenger.send(msg);
 			} catch (RemoteException err) {
 				debug(err, "Failed to register: ", activity);

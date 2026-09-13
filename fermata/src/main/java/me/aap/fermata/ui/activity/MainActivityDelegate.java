@@ -6,6 +6,7 @@ import static android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
 import static android.content.pm.PackageManager.PERMISSION_GRANTED;
 import static android.provider.Settings.System.SCREEN_BRIGHTNESS;
 import static android.util.Base64.URL_SAFE;
+import static android.util.Base64.NO_WRAP;
 import static android.view.View.GONE;
 import static android.view.View.VISIBLE;
 import static android.view.ViewGroup.LayoutParams.MATCH_PARENT;
@@ -14,7 +15,7 @@ import static android.view.WindowManager.LayoutParams.FLAG_DISMISS_KEYGUARD;
 import static android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON;
 import static android.view.WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED;
 import static android.view.WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON;
-import static java.nio.charset.StandardCharsets.US_ASCII;
+import static java.nio.charset.StandardCharsets.UTF_8;
 import static me.aap.fermata.BuildConfig.AUTO;
 import static me.aap.fermata.action.KeyEventHandler.handleKeyEvent;
 import static me.aap.fermata.ui.activity.MainActivityPrefs.BRIGHTNESS;
@@ -114,6 +115,7 @@ import me.aap.fermata.media.service.MediaSessionCallbackAssistant;
 import me.aap.fermata.ui.fragment.AudioEffectsFragment;
 import me.aap.fermata.ui.fragment.FavoritesFragment;
 import me.aap.fermata.ui.fragment.FoldersFragment;
+import me.aap.fermata.ui.fragment.DriveHomeFragment;
 import me.aap.fermata.ui.fragment.MainActivityFragment;
 import me.aap.fermata.ui.fragment.MediaLibFragment;
 import me.aap.fermata.ui.fragment.NavBarMediator;
@@ -199,7 +201,7 @@ public class MainActivityDelegate extends ActivityDelegate
 	}
 
 	public static Uri toIntentUri(String action, String itemId) {
-		String id = Base64.encodeToString(itemId.getBytes(US_ASCII), URL_SAFE);
+		String id = Base64.encodeToString(itemId.getBytes(UTF_8), URL_SAFE | NO_WRAP);
 		return new Uri.Builder().scheme(INTENT_SCHEME).authority(action).path(id).build();
 	}
 
@@ -207,7 +209,13 @@ public class MainActivityDelegate extends ActivityDelegate
 	public static String intentUriToId(Uri u) {
 		if ((u == null) || !INTENT_SCHEME.equals(u.getScheme())) return null;
 		String id = u.getPath();
-		return (id == null) ? null : new String(Base64.decode(id.substring(1), URL_SAFE), US_ASCII);
+		if ((id == null) || (id.length() < 2)) return null;
+		try {
+			return new String(Base64.decode(id.substring(1), URL_SAFE), UTF_8);
+		} catch (IllegalArgumentException ex) {
+			Log.d(ex, "Invalid Fermata intent URI: ", u);
+			return null;
+		}
 	}
 
 	@Nullable
@@ -298,9 +306,8 @@ public class MainActivityDelegate extends ActivityDelegate
 			if (INTENT_SCHEME.equals(u.getScheme())) {
 				String action = u.getHost();
 				if (action == null) return completed(false);
-				String id = u.getPath();
+				String id = intentUriToId(u);
 				if (id == null) return completed(false);
-				id = new String(Base64.decode(id.substring(1), URL_SAFE), US_ASCII);
 
 				if (INTENT_ACTION_OPEN.equals(action)) {
 					goToItem(id).map(MiscUtils::nonNull);
@@ -344,18 +351,26 @@ public class MainActivityDelegate extends ActivityDelegate
 			}
 		}
 
+		if (AUTO && isCarActivityNotMirror()) {
+			showFragment(R.id.drive_home_fragment);
+			checkUpdates();
+			return;
+		}
+
 		FutureSupplier<Boolean> f = goToCurrent().onCompletion((ok, fail1) -> {
 			if ((fail1 != null) && !isCancellation(fail1)) {
 				Log.e(fail1, "Last played track not found");
 			}
-			if ((ok == null) || !ok) showFragment(R.id.folders_fragment);
+			if ((ok == null) || !ok) showFragment(getDefaultFragmentId());
 			checkUpdates();
 		});
 
-		if (!f.isDone() || f.isFailed() || !Boolean.TRUE.equals(f.peek())) {
-			showFragment(R.id.folders_fragment);
-			setContentLoading(f);
-		}
+		if (!f.isDone()) setContentLoading(f);
+	}
+
+	private int getDefaultFragmentId() {
+		if (AUTO && isCarActivityNotMirror()) return R.id.drive_home_fragment;
+		return R.id.folders_fragment;
 	}
 
 	private void checkUpdates() {
@@ -709,7 +724,9 @@ public class MainActivityDelegate extends ActivityDelegate
 	}
 
 	protected ActivityFragment createFragment(int id) {
-		if (id == R.id.folders_fragment) {
+		if (id == R.id.drive_home_fragment) {
+			return new DriveHomeFragment();
+		} else if (id == R.id.folders_fragment) {
 			return new FoldersFragment();
 		} else if (id == R.id.favorites_fragment) {
 			return new FavoritesFragment();
@@ -1022,20 +1039,17 @@ public class MainActivityDelegate extends ActivityDelegate
 
 	private static String[] getRequiredPermissions() {
 		List<String> perms = new ArrayList<>();
-		perms.add(permission.READ_EXTERNAL_STORAGE);
-		if (VERSION.SDK_INT >= VERSION_CODES.P) {
-			perms.add(permission.FOREGROUND_SERVICE);
+		if (VERSION.SDK_INT >= VERSION_CODES.TIRAMISU) {
+			perms.add(permission.READ_MEDIA_AUDIO);
+			perms.add(permission.READ_MEDIA_VIDEO);
+		} else {
+			perms.add(permission.READ_EXTERNAL_STORAGE);
 		}
 		if (VERSION.SDK_INT >= VERSION_CODES.Q) {
 			perms.add(permission.ACCESS_MEDIA_LOCATION);
-			perms.add(permission.USE_FULL_SCREEN_INTENT);
 		}
 		if (VERSION.SDK_INT >= VERSION_CODES.TIRAMISU) {
-			perms.add(permission.USE_FULL_SCREEN_INTENT);
 			perms.add(permission.POST_NOTIFICATIONS);
-		}
-		if (VERSION.SDK_INT >= VERSION_CODES.UPSIDE_DOWN_CAKE) {
-			perms.add(permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK);
 		}
 		return perms.toArray(new String[0]);
 	}

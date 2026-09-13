@@ -1,0 +1,27 @@
+// Controls which optional feature modules are packaged.
+//
+// `full: null` means every module found in the modules directory.
+// Add or remove names from `core` to customise the smaller APK.
+ext.moduleProfiles = [
+        full: null,
+        core: [
+                'web', // YouTube, Jellyfin and the web browser
+                'vlc', // Broad codec support, including AC3
+                'exoplayer', // Media3 playback engine
+                'felex',     // File Explorer
+
+                // Other available modules:
+                // 'cast',      // Google Cast
+                // 'tv',        // IPTV
+                // 'sftp',      // SFTP files
+                // 'smb',       // Windows/network shares
+                // 'gdrive',    // Google Drive; requires google-services.json
+                // 'poi',       // Points of interest for Android Auto
+                // 'chat',      // ChatGPT add-on
+
+                // Subtitle generation and translation tools:
+                // 'whisper',   // Local speech-to-text; also enable exoplayer and a translator
+                // 'opusmt',    // Local translation; includes ONNX Runtime
+                // 'mlkit',     // Google ML Kit translation
+        ] as Set
+]

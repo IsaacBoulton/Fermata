@@ -26,6 +26,7 @@
     <string name="addon_name_tv">TV</string>
     <string name="addon_name_web_browser">Web browser</string>
     <string name="addon_name_youtube" translatable="false">Youtube</string>
+    <string name="addon_name_jellyfin" translatable="false">Jellyfin</string>
     <string name="addon_name_felex" translatable="false">Felex</string>
     <string name="addon_name_cast" translatable="false">Google Cast</string>
     <string name="addon_name_chat" translatable="false">ChatGPT</string>
@@ -40,6 +41,16 @@
     <string name="addon_name_nllb_translate" translatable="false">NLLB-200 Translate</string>
     <string name="addon_name_poi" translatable="false">POI</string>
 
+    <string name="drive_home">Home</string>
+    <string name="drive_home_title">What do you want to watch?</string>
+    <string name="drive_home_subtitle">Pick a service or resume what was playing.</string>
+    <string name="quick_access">Quick access</string>
+    <string name="youtube_home_subtitle">Videos and subscriptions</string>
+    <string name="jellyfin_home_subtitle">Your media library</string>
+    <string name="open_youtube">Open YouTube</string>
+    <string name="open_jellyfin">Open Jellyfin</string>
+    <string name="resume_playback">Resume playback</string>
+    <string name="browse_more">More</string>
     <string name="interface_prefs">Interface</string>
     <string name="interface_prefs_aa">Android Auto</string>
     <string name="playback_settings">Playback settings</string>
@@ -61,6 +72,14 @@
     <string name="nav_bar_pos_bottom">Bottom</string>
     <string name="nav_bar_pos_left">Left</string>
     <string name="nav_bar_pos_right">Right</string>
+    <string name="customize_navigation">Customize navigation</string>
+    <string name="pin_to_navigation">Pin to navigation</string>
+    <string name="unpin_from_navigation">Unpin from navigation</string>
+    <string name="hide_from_navigation">Hide from navigation</string>
+    <string name="navigation_item_state">%1$s · %2$s</string>
+    <string name="navigation_state_pinned">Pinned</string>
+    <string name="navigation_state_more">In More</string>
+    <string name="navigation_state_hidden">Hidden</string>
 
     <string name="show_track_icons">Show track icons</string>
     <string name="lang">Language</string>
@@ -323,10 +342,6 @@
     <string name="password">Password</string>
     <string name="private_key">Private key</string>
     <string name="private_key_pass">Private key password</string>
-
-    <string name="donate">Coffee for developer</string>
-    <string name="donate_text">If you like the application, please consider buying me a coffee.</string>
-    <string name="use_phone_for_donation">Please use your phone to buy a coffee.</string>
 
     <string name="timer">Timer</string>
     <string name="hours">Hours</string>

@@ -41,6 +41,7 @@ public class YoutubeFragment extends WebBrowserFragment implements FermataServic
 	private static final String DEFAULT_URL = "https://m.youtube.com";
 	private static final Set<String> DEFAULT_URLS = new HashSet<>(Arrays.asList(DEFAULT_URL, DEFAULT_URL + '/'));
 	private static final Pref<LongSupplier> RESUME_POS = Pref.l("YT_RESUME_POS", 0L);
+	private static final int RESTORE_RETRIES = 40;
 	private boolean playOnResume;
 
 	@Override
@@ -71,25 +72,30 @@ public class YoutubeFragment extends WebBrowserFragment implements FermataServic
 		}
 
 		MainActivityDelegate.getActivityDelegate(view.getContext()).onSuccess(a -> {
-			YoutubeWebView webView = a.findViewById(R.id.ytWebView);
-			VideoView videoView = a.findViewById(R.id.ytVideoView);
+			YoutubeWebView webView = view.findViewById(R.id.ytWebView);
+			VideoView videoView = view.findViewById(R.id.ytVideoView);
 			YoutubeWebClient webClient = new YoutubeWebClient();
 			YoutubeChromeClient chromeClient = new YoutubeChromeClient(webView, videoView);
 			webView.init(addon, webClient, chromeClient);
 			registerListeners(a);
 			webView.loadUrl(DEFAULT_URL);
 			if (!DEFAULT_URL.equals(url)) a.post(() -> webView.loadUrl(url));
-			a.postDelayed(() -> {
-				PreferenceStore ps = addon.getPreferenceStore();
-				long pos = ps.getLongPref(RESUME_POS);
-				ps.removePref(RESUME_POS);
-				MediaSessionCallback cb = a.getMediaSessionCallback();
-				if (cb.getEngine() instanceof YoutubeMediaEngine) {
-					if (pos > 0L) cb.onSeekTo(pos);
-					if (pause) cb.onPause();
-				}
-			}, 3000L);
+			PreferenceStore ps = addon.getPreferenceStore();
+			restorePlayback(a, webView, ps, ps.getLongPref(RESUME_POS), pause, 0);
 		});
+	}
+
+	private void restorePlayback(MainActivityDelegate a, YoutubeWebView webView, PreferenceStore ps,
+									 long position, boolean pause, int attempt) {
+		if (getWebView() != webView) return;
+		MediaSessionCallback cb = a.getMediaSessionCallback();
+		if (cb.getEngine() instanceof YoutubeMediaEngine) {
+			ps.removePref(RESUME_POS);
+			if (position > 0L) cb.onSeekTo(position);
+			if (pause) cb.onPause();
+		} else if (attempt < RESTORE_RETRIES) {
+			a.postDelayed(() -> restorePlayback(a, webView, ps, position, pause, attempt + 1), 250L);
+		}
 	}
 
 	@Override

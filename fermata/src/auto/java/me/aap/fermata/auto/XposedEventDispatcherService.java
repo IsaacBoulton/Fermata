@@ -17,7 +17,11 @@ import androidx.annotation.Nullable;
 import me.aap.fermata.FermataApplication;
 import me.aap.utils.log.Log;
 
+import java.security.SecureRandom;
+
 public class XposedEventDispatcherService extends Service {
+	static final String EXTRA_CALLING_PACKAGE = "callingPackage";
+	static final String EXTRA_REGISTRATION_TOKEN = "registrationToken";
 	static final int MSG_REGISTER = 0;
 	static final int MSG_UNREGISTER = 1;
 	static final int MSG_MIRROR_MODE = 2;
@@ -25,13 +29,21 @@ public class XposedEventDispatcherService extends Service {
 	static final int MSG_BACK_EVENT = 4;
 	private static Messenger activityMessenger;
 	private static int registrationKey;
+	private static int registeredUid = -1;
+	private static String expectedPackage;
+	private static long expectedToken;
 	private final Messenger messenger = new Messenger(new Handler(Looper.getMainLooper()) {
 		@Override
 		public void handleMessage(@NonNull Message msg) {
 			if (msg.what == MSG_REGISTER) {
+				if (!isValidRegistration(msg)) {
+					Log.e("Rejected event dispatcher registration from uid ", msg.sendingUid);
+					return;
+				}
 				activityMessenger = msg.replyTo;
 				registrationKey = msg.arg1;
-				Log.i("Activity registered: ", activityMessenger, ", key: ", registrationKey);
+				registeredUid = msg.sendingUid;
+				Log.i("Activity registered for uid ", registeredUid);
 
 				try {
 					var mode = FermataApplication.get().getMirroringMode();
@@ -39,12 +51,46 @@ public class XposedEventDispatcherService extends Service {
 				} catch (RemoteException err) {
 					Log.e(err);
 				}
-			} else if ((msg.what == MSG_UNREGISTER) && (registrationKey == msg.arg1)) {
+			} else if ((msg.what == MSG_UNREGISTER) && (registeredUid == msg.sendingUid) &&
+					(registrationKey == msg.arg1)) {
 				activityMessenger = null;
-				Log.i("Activity unregistered: ", registrationKey);
+				registeredUid = -1;
+				Log.i("Activity unregistered");
 			}
 		}
 	});
+
+	private boolean isValidRegistration(Message msg) {
+		if ((msg.replyTo == null) || !msg.replyTo.getBinder().isBinderAlive() ||
+				!FermataApplication.get().isMirroringMode()) return false;
+
+		String callingPackage = msg.getData().getString(EXTRA_CALLING_PACKAGE);
+		if (callingPackage == null) return false;
+		String[] packages = getPackageManager().getPackagesForUid(msg.sendingUid);
+		if (packages == null) return false;
+		boolean ownsPackage = false;
+		for (String pkg : packages) {
+			if (callingPackage.equals(pkg)) {
+				ownsPackage = true;
+				break;
+			}
+		}
+		if (!ownsPackage) return false;
+
+		if (!callingPackage.equals(expectedPackage) ||
+				(msg.getData().getLong(EXTRA_REGISTRATION_TOKEN) != expectedToken)) return false;
+
+		return (activityMessenger == null) || (registeredUid == msg.sendingUid) ||
+				!activityMessenger.getBinder().isBinderAlive();
+	}
+
+	static long createRegistrationToken(String packageName) {
+		expectedPackage = packageName;
+		do {
+			expectedToken = new SecureRandom().nextLong();
+		} while (expectedToken == 0L);
+		return expectedToken;
+	}
 
 	@Nullable
 	@Override
@@ -53,8 +99,20 @@ public class XposedEventDispatcherService extends Service {
 		return messenger.getBinder();
 	}
 
+	@Override
+	public void onDestroy() {
+		activityMessenger = null;
+		registeredUid = -1;
+		expectedPackage = null;
+		expectedToken = 0L;
+		super.onDestroy();
+	}
+
 	static boolean canDispatchEvent() {
-		return activityMessenger != null;
+		if ((activityMessenger != null) && activityMessenger.getBinder().isBinderAlive()) return true;
+		activityMessenger = null;
+		registeredUid = -1;
+		return false;
 	}
 
 	static boolean dispatchBackEvent() {
@@ -65,6 +123,7 @@ public class XposedEventDispatcherService extends Service {
 		} catch (Exception err) {
 			Log.d(err, "Failed to send back event to ", activityMessenger);
 			activityMessenger = null;
+			registeredUid = -1;
 			return false;
 		}
 	}
@@ -81,6 +140,7 @@ public class XposedEventDispatcherService extends Service {
 		} catch (Exception err) {
 			Log.d(err, "Failed to send motion event to ", activityMessenger);
 			activityMessenger = null;
+			registeredUid = -1;
 			return false;
 		}
 	}

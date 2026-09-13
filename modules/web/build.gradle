@@ -15,10 +15,17 @@ ext {
                     order: 2
             ],
             [
+                    name : 'jellyfin',
+                    icon : 'jellyfin',
+                    class: 'me.aap.fermata.addon.web.JellyfinAddon',
+                    order: 3,
+                    auto : true
+            ],
+            [
                     name : 'web_browser',
                     icon : 'web',
                     class: 'me.aap.fermata.addon.web.WebBrowserAddon',
-                    order: 3
+                    order: 4
             ]
     ]
 }

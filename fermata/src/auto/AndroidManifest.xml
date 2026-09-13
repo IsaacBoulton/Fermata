@@ -19,7 +19,7 @@
 
     <uses-feature
         android:name="android.hardware.type.automotive"
-        android:required="true" />
+        android:required="false" />
 
     <queries>
         <intent>

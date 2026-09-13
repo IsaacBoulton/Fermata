@@ -4,27 +4,27 @@ import static android.view.View.FOCUS_DOWN;
 import static android.view.View.FOCUS_LEFT;
 import static android.view.View.FOCUS_RIGHT;
 import static android.view.View.FOCUS_UP;
-import static me.aap.fermata.BuildConfig.VERSION_CODE;
-import static me.aap.fermata.BuildConfig.VERSION_NAME;
 import static me.aap.utils.collection.CollectionUtils.newLinkedHashSet;
 import static me.aap.utils.ui.UiUtils.isVisible;
-import static me.aap.utils.ui.UiUtils.showInfo;
 import static me.aap.utils.ui.view.NavBarItem.create;
 import static me.aap.utils.ui.view.NavBarView.POSITION_LEFT;
 import static me.aap.utils.ui.view.NavBarView.POSITION_RIGHT;
 
 import android.content.Context;
-import android.content.DialogInterface;
+import android.view.Gravity;
 import android.view.View;
 
 import androidx.annotation.IdRes;
 import androidx.annotation.Nullable;
-import androidx.core.text.HtmlCompat;
+import androidx.appcompat.widget.LinearLayoutCompat;
+import androidx.core.widget.ImageViewCompat;
 
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import me.aap.fermata.BuildConfig;
@@ -38,24 +38,19 @@ import me.aap.fermata.ui.activity.MainActivityDelegate;
 import me.aap.fermata.ui.view.BodyLayout;
 import me.aap.fermata.ui.view.ControlPanelView;
 import me.aap.fermata.ui.view.MediaItemListView;
-import me.aap.fermata.util.Utils;
 import me.aap.utils.collection.CollectionUtils;
 import me.aap.utils.function.Supplier;
-import me.aap.utils.holder.IntHolder;
 import me.aap.utils.log.Log;
 import me.aap.utils.pref.PreferenceStore;
 import me.aap.utils.pref.PreferenceStore.Pref;
-import me.aap.utils.ui.UiUtils;
 import me.aap.utils.ui.activity.ActivityDelegate;
 import me.aap.utils.ui.fragment.ActivityFragment;
-import me.aap.utils.ui.fragment.GenericFragment;
 import me.aap.utils.ui.menu.OverlayMenu;
 import me.aap.utils.ui.menu.OverlayMenuItem;
 import me.aap.utils.ui.view.NavBarItem;
 import me.aap.utils.ui.view.NavBarView;
 import me.aap.utils.ui.view.NavButtonView;
 import me.aap.utils.ui.view.PrefNavBarMediator;
-import me.aap.utils.ui.view.ScalableTextView;
 import me.aap.utils.ui.view.ToolBarView;
 
 /**
@@ -63,53 +58,90 @@ import me.aap.utils.ui.view.ToolBarView;
  */
 public class NavBarMediator extends PrefNavBarMediator
 		implements AddonManager.Listener, OverlayMenu.SelectionHandler {
-	private static final Pref<Supplier<String[]>> PREF_B =
-			Pref.sa("NAV_BAR_ITEMS_B", (String[]) null);
-	private static final Pref<Supplier<String[]>> PREF_L =
-			Pref.sa("NAV_BAR_ITEMS_L", (String[]) null);
-	private static final Pref<Supplier<String[]>> PREF_R =
-			Pref.sa("NAV_BAR_ITEMS_R", (String[]) null);
+	private static final String FOLDERS = "folders";
+	private static final String HOME = "home";
+	private static final String FAVORITES = "favorites";
+	private static final String PLAYLISTS = "playlists";
+	private static final String MENU = "menu";
+	private static final String YOUTUBE = "me.aap.fermata.addon.web.yt.YoutubeAddon";
+	private static final String JELLYFIN = "me.aap.fermata.addon.web.JellyfinAddon";
+	private static final PositionPrefs BOTTOM_PREFS = new PositionPrefs("B");
+	private static final PositionPrefs LEFT_PREFS = new PositionPrefs("L");
+	private static final PositionPrefs RIGHT_PREFS = new PositionPrefs("R");
+
+	private enum ItemState {
+		PINNED, MORE, HIDDEN
+	}
+
+	private static final class PositionPrefs {
+		final Pref<Supplier<String[]>> order;
+		final Pref<Supplier<String[]>> hidden;
+		final Pref<Supplier<String[]>> unpinned;
+
+		PositionPrefs(String suffix) {
+			order = Pref.sa("NAV_BAR_ITEMS_" + suffix, (String[]) null);
+			hidden = Pref.sa("NAV_BAR_HIDDEN_" + suffix);
+			unpinned = Pref.sa("NAV_BAR_UNPINNED_" + suffix);
+		}
+	}
+
+	private static final class Entry {
+		final String name;
+		final int id;
+		final int icon;
+		final int title;
+
+		Entry(String name, int id, int icon, int title) {
+			this.name = name;
+			this.id = id;
+			this.icon = icon;
+			this.title = title;
+		}
+
+		NavBarItem toNavItem(Context context, boolean pinned) {
+			return create(context, id, icon, title, pinned);
+		}
+	}
 
 	@Override
 	protected Collection<NavBarItem> getItems(NavBarView nb) {
-		int max = nb.suggestItemCount() - 1;
-		Collection<String> names = getLayout(nb);
-		List<NavBarItem> items = new ArrayList<>(names.size());
-		AddonManager amgr = getAddonManager();
-		Context ctx = nb.getContext();
+		List<Entry> entries = getEntries(nb, false);
+		Set<String> pinned = getPinnedNames(nb, entries);
+		List<NavBarItem> items = new ArrayList<>(entries.size());
 
-		for (String name : names) {
-			switch (name) {
-				case "folders":
-					items.add(
-							create(ctx, R.id.folders_fragment, me.aap.utils.R.drawable.folder, R.string.folders,
-									items.size() < max));
-					continue;
-				case "favorites":
-					items.add(
-							create(ctx, R.id.favorites_fragment, R.drawable.favorite_filled, R.string.favorites,
-									items.size() < max));
-					continue;
-				case "playlists":
-					items.add(create(ctx, R.id.playlists_fragment, R.drawable.playlist, R.string.playlists,
-							items.size() < max));
-					continue;
-				case "menu":
-					items.add(create(ctx, R.id.menu, me.aap.utils.R.drawable.menu, R.string.menu,
-							items.size() < max));
-					continue;
-			}
-
-			FermataAddon a = amgr.getAddon(name);
-			if (a instanceof FermataFragmentAddon) {
-				AddonInfo ai = a.getInfo();
-				items.add(create(ctx, a.getAddonId(), ai.icon, ai.addonName, items.size() < max));
-				continue;
-			}
-			Log.e("Unknown NavBarItem name: ", name);
+		for (Entry entry : entries) {
+			items.add(entry.toNavItem(nb.getContext(), pinned.contains(entry.name)));
 		}
 
 		return items;
+	}
+
+	@Override
+	public void addView(NavBarView nb, View v, int id, View.OnClickListener onClick) {
+		super.addView(nb, v, id, onClick);
+		v.setBackgroundResource(R.drawable.nav_item_background);
+		if (!nb.isBottom() && (v instanceof NavButtonView button)) {
+			Context context = v.getContext();
+			LinearLayoutCompat.LayoutParams lp =
+					(LinearLayoutCompat.LayoutParams) v.getLayoutParams();
+			lp.height = context.getResources().getDimensionPixelSize(R.dimen.nav_item_size);
+			lp.weight = 0;
+			v.setLayoutParams(lp);
+			button.setGravity(Gravity.CENTER);
+
+			int iconSize = context.getResources().getDimensionPixelSize(R.dimen.nav_item_icon_size);
+			LinearLayoutCompat.LayoutParams iconParams =
+					(LinearLayoutCompat.LayoutParams) button.getIcon().getLayoutParams();
+			iconParams.width = iconSize;
+			iconParams.height = iconSize;
+			iconParams.weight = 0;
+			iconParams.gravity = Gravity.CENTER;
+			button.getIcon().setLayoutParams(iconParams);
+		}
+		if (((id == R.id.youtube_fragment) || (id == R.id.jellyfin_fragment)) &&
+				(v instanceof NavButtonView button)) {
+			ImageViewCompat.setImageTintList(button.getIcon(), null);
+		}
 	}
 
 	@Override
@@ -119,9 +151,11 @@ public class NavBarMediator extends PrefNavBarMediator
 
 	@Override
 	protected boolean swap(NavBarView nb, @IdRes int id1, @IdRes int id2) {
-		List<String> names = new ArrayList<>(getLayout(nb));
-		String name1 = idToName(id1);
-		String name2 = idToName(id2);
+		List<Entry> entries = getEntries(nb, false);
+		List<String> names = new ArrayList<>(entries.size());
+		for (Entry entry : entries) names.add(entry.name);
+		String name1 = findName(entries, id1);
+		String name2 = findName(entries, id2);
 		int idx1 = names.indexOf(name1);
 		int idx2 = names.indexOf(name2);
 
@@ -160,14 +194,15 @@ public class NavBarMediator extends PrefNavBarMediator
 
 	@Override
 	protected Pref<Supplier<String[]>> getPref(NavBarView nb) {
-		switch (nb.getPosition()) {
-			default:
-				return PREF_B;
-			case POSITION_LEFT:
-				return PREF_L;
-			case POSITION_RIGHT:
-				return PREF_R;
-		}
+		return getPositionPrefs(nb).order;
+	}
+
+	private PositionPrefs getPositionPrefs(NavBarView nb) {
+		return switch (nb.getPosition()) {
+			default -> BOTTOM_PREFS;
+			case POSITION_LEFT -> LEFT_PREFS;
+			case POSITION_RIGHT -> RIGHT_PREFS;
+		};
 	}
 
 	@Override
@@ -241,9 +276,9 @@ public class NavBarMediator extends PrefNavBarMediator
 			ActivityFragment f = a.getActiveFragment();
 			if (f instanceof MainActivityFragment) ((MainActivityFragment) f).contributeToNavBarMenu(b);
 
-			b.addItem(R.id.nav_about, R.drawable.about, R.string.about);
+			b.addItem(R.id.nav_customize, R.drawable.edit, R.string.customize_navigation)
+					.setSubmenu(customize -> buildCustomizeMenu(a, customize));
 			b.addItem(R.id.settings_fragment, R.drawable.settings, R.string.settings);
-			if (BuildConfig.AUTO) b.addItem(R.id.nav_donate, R.drawable.coffee, R.string.donate);
 			b.addItem(R.id.nav_exit, R.drawable.exit, a.isCarActivityNotMirror() ? R.string.restart : R.string.exit);
 		});
 	}
@@ -253,23 +288,6 @@ public class NavBarMediator extends PrefNavBarMediator
 		int itemId = item.getItemId();
 		if (itemId == R.id.nav_got_to_current) {
 			MainActivityDelegate.get(item.getContext()).goToCurrent();
-			return true;
-		} else if (itemId == R.id.nav_about) {
-			MainActivityDelegate a = MainActivityDelegate.get(item.getContext());
-			if (!(a.showFragment(me.aap.utils.R.id.generic_fragment) instanceof GenericFragment f))
-				return false;
-			f.setTitle(item.getContext().getString(R.string.about));
-			f.setContentProvider(g -> {
-				Context ctx = g.getContext();
-				ScalableTextView v = new ScalableTextView(ctx);
-				String url = "https://github.com/AndreyPavlenko/Fermata";
-				String html = ctx.getString(R.string.about_html, VERSION_NAME, VERSION_CODE, url);
-				int pad = UiUtils.toIntPx(ctx, 10);
-				v.setPadding(pad, pad, pad, pad);
-				v.setText(HtmlCompat.fromHtml(html, HtmlCompat.FROM_HTML_MODE_LEGACY));
-				v.setOnClickListener(t -> openUrl(t.getContext(), url));
-				g.addView(v);
-			});
 			return true;
 		} else if (itemId == R.id.settings_fragment) {
 			MainActivityDelegate.get(item.getContext()).showFragment(R.id.settings_fragment);
@@ -282,70 +300,160 @@ public class NavBarMediator extends PrefNavBarMediator
 			}
 			return true;
 		}
-		MainActivityDelegate a;
-		if (BuildConfig.AUTO && (item.getItemId() == R.id.nav_donate)) {
-			Context ctx = item.getContext();
-			a = MainActivityDelegate.get(ctx);
-
-			DialogInterface.OnClickListener ok = (d, i) -> {
-				IntHolder selection = new IntHolder();
-				String[] wallets = new String[]{"PayPal", "CloudTips", "Yandex",};
-				String[] urls =
-						new String[]{"https://www.paypal.com/donate/?hosted_button_id=NP5Q3YDSCJ98N",
-								"https://pay.cloudtips.ru/p/a03a73da", "https://yoomoney.ru/to/410014661137336"};
-
-				a.createDialogBuilder().setTitle(R.drawable.coffee, R.string.donate)
-						.setSingleChoiceItems(wallets, 0, (dlg, which) -> selection.value = which)
-						.setNegativeButton(android.R.string.cancel, null)
-						.setPositiveButton(android.R.string.ok, (d1, w1) -> openUrl(ctx,
-								urls[selection.value]))
-						.show();
-			};
-
-			a.createDialogBuilder().setTitle(R.drawable.coffee, R.string.donate)
-					.setMessage(R.string.donate_text).setNegativeButton(android.R.string.cancel, null)
-					.setPositiveButton(android.R.string.ok, ok).show();
-
-			return true;
-		}
-
 		return false;
 	}
 
-	private static void openUrl(Context ctx, String url) {
-		if (!Utils.openUrl(ctx, url)) showInfo(ctx, R.string.use_phone_for_donation);
+	private void buildCustomizeMenu(MainActivityDelegate a, OverlayMenu.Builder builder) {
+		NavBarView nb = a.getNavBar();
+		Context ctx = nb.getContext();
+		PositionPrefs prefs = getPositionPrefs(nb);
+		Set<String> hidden = getNames(nb, prefs.hidden);
+		Set<String> pinned = getPinnedNames(nb, getEntries(nb, false));
+
+		builder.setTitle(R.string.customize_navigation);
+		for (Entry entry : getEntries(nb, true)) {
+			if (MENU.equals(entry.name)) continue;
+			NavBarItem navItem = entry.toNavItem(ctx, false);
+			ItemState itemState = hidden.contains(entry.name) ? ItemState.HIDDEN :
+					(pinned.contains(entry.name) ? ItemState.PINNED : ItemState.MORE);
+			int state = switch (itemState) {
+				case PINNED -> R.string.navigation_state_pinned;
+				case MORE -> R.string.navigation_state_more;
+				case HIDDEN -> R.string.navigation_state_hidden;
+			};
+			String title = ctx.getString(R.string.navigation_item_state, navItem.getText(),
+					ctx.getString(state));
+
+			builder.addItem(navItem.getId(), navItem.getIcon(), title).setSubmenu(actions -> {
+				actions.setTitle(navItem.getText());
+				if (itemState != ItemState.PINNED) {
+					actions.addItem(R.id.nav_pin, R.drawable.playlist_add,
+							R.string.pin_to_navigation).setHandler(item -> {
+						setNavigationState(nb, entry.name, ItemState.PINNED);
+						return true;
+					});
+				}
+				if (itemState != ItemState.MORE) {
+					actions.addItem(R.id.nav_unpin, R.drawable.playlist_remove,
+							R.string.unpin_from_navigation).setHandler(item -> {
+						setNavigationState(nb, entry.name, ItemState.MORE);
+						return true;
+					});
+				}
+				if (itemState != ItemState.HIDDEN) {
+					actions.addItem(R.id.nav_hide, R.drawable.delete,
+							R.string.hide_from_navigation).setHandler(item -> {
+						setNavigationState(nb, entry.name, ItemState.HIDDEN);
+						return true;
+					});
+				}
+			});
+		}
 	}
 
-	private Collection<String> getLayout(NavBarView nb) {
-		AddonManager amgr = FermataApplication.get().getAddonManager();
-		Set<String> names = newLinkedHashSet(BuildConfig.ADDONS.length + 4);
-		String[] pref = getPreferenceStore(nb).getStringArrayPref(getPref(nb));
-		CollectionUtils.addAll(names, pref);
-		names.add("folders");
-		names.add("favorites");
-		names.add("playlists");
-		for (AddonInfo ai : BuildConfig.ADDONS) {
-			FermataAddon a = amgr.getAddon(ai.className);
-			if (a instanceof FermataFragmentAddon) names.add(ai.className);
-		}
-		names.add("menu");
+	private Set<String> getNames(NavBarView nb, Pref<Supplier<String[]>> pref) {
+		Set<String> names = newLinkedHashSet(BuildConfig.ADDONS.length + 3);
+		CollectionUtils.addAll(names, getPreferenceStore(nb).getStringArrayPref(pref));
 		return names;
 	}
 
-	private static String idToName(@IdRes int id) {
-		if (id == R.id.folders_fragment) return "folders";
-		else if (id == R.id.favorites_fragment) return "favorites";
-		else if (id == R.id.playlists_fragment) return "playlists";
-		else if (id == R.id.menu) return "menu";
+	private void setNavigationState(NavBarView nb, String name, ItemState state) {
+		PreferenceStore store = getPreferenceStore(nb);
+		PositionPrefs prefs = getPositionPrefs(nb);
+		Set<String> hidden = getNames(nb, prefs.hidden);
+		Set<String> unpinned = getNames(nb, prefs.unpinned);
+		hidden.remove(name);
+		unpinned.remove(name);
+
+		switch (state) {
+			case HIDDEN -> hidden.add(name);
+			case MORE -> unpinned.add(name);
+			case PINNED -> {
+				List<String> order = new ArrayList<>();
+				for (Entry entry : getEntries(nb, true)) order.add(entry.name);
+				order.remove(name);
+				order.add(0, name);
+				store.applyStringArrayPref(prefs.order, order.toArray(new String[0]));
+			}
+		}
+
+		store.applyStringArrayPref(prefs.hidden, hidden.toArray(new String[0]));
+		store.applyStringArrayPref(prefs.unpinned, unpinned.toArray(new String[0]));
+		reload(nb);
+	}
+
+	private List<Entry> getEntries(NavBarView nb, boolean includeHidden) {
+		Map<String, Entry> available = getAvailableEntries();
+		Set<String> names = newLinkedHashSet(available.size());
+		if (BuildConfig.AUTO) names.add(HOME);
+		String[] savedOrder = getPreferenceStore(nb).getStringArrayPref(getPref(nb));
+		CollectionUtils.addAll(names, savedOrder);
+		if (BuildConfig.AUTO && ((savedOrder == null) || (savedOrder.length == 0))) {
+			names.add(YOUTUBE);
+			names.add(JELLYFIN);
+		}
+		names.add(FOLDERS);
+		names.add(FAVORITES);
+		names.add(PLAYLISTS);
+		names.addAll(available.keySet());
+
+		if (!includeHidden) {
+			names.removeAll(getNames(nb, getPositionPrefs(nb).hidden));
+			names.add(MENU);
+		}
+
+		List<Entry> entries = new ArrayList<>(names.size());
+		for (String name : names) {
+			Entry entry = available.get(name);
+			if (entry != null) entries.add(entry);
+			else Log.e("Unknown NavBarItem name: ", name);
+		}
+		return entries;
+	}
+
+	private Map<String, Entry> getAvailableEntries() {
+		Map<String, Entry> entries = new LinkedHashMap<>(BuildConfig.ADDONS.length + 4);
+		if (BuildConfig.AUTO) {
+			entries.put(HOME, new Entry(HOME, R.id.drive_home_fragment,
+					R.drawable.drive_home, R.string.drive_home));
+		}
+		entries.put(FOLDERS, new Entry(FOLDERS, R.id.folders_fragment,
+				me.aap.utils.R.drawable.folder, R.string.folders));
+		entries.put(FAVORITES, new Entry(FAVORITES, R.id.favorites_fragment,
+				R.drawable.favorite_filled, R.string.favorites));
+		entries.put(PLAYLISTS, new Entry(PLAYLISTS, R.id.playlists_fragment,
+				R.drawable.playlist, R.string.playlists));
 
 		AddonManager amgr = getAddonManager();
 		for (AddonInfo ai : BuildConfig.ADDONS) {
-			FermataAddon a = amgr.getAddon(ai.className);
-			if ((a instanceof FermataFragmentAddon) && (a.getAddonId() == id)) return ai.className;
+			FermataAddon addon = amgr.getAddon(ai.className);
+			if (addon instanceof FermataFragmentAddon) {
+				entries.put(ai.className,
+						new Entry(ai.className, addon.getAddonId(), ai.icon, ai.addonName));
+			}
 		}
+		entries.put(MENU, new Entry(MENU, R.id.menu, me.aap.utils.R.drawable.menu,
+				R.string.menu));
+		return entries;
+	}
 
-		Log.e("Unknown NavBarItem id: ", id);
-		return String.valueOf(id);
+	private Set<String> getPinnedNames(NavBarView nb, List<Entry> entries) {
+		Set<String> unpinned = getNames(nb, getPositionPrefs(nb).unpinned);
+		Set<String> pinned = newLinkedHashSet(nb.suggestItemCount());
+		int max = nb.suggestItemCount() - 1;
+		for (Entry entry : entries) {
+			if ((pinned.size() >= max) || unpinned.contains(entry.name)) continue;
+			pinned.add(entry.name);
+		}
+		return pinned;
+	}
+
+	@Nullable
+	private static String findName(List<Entry> entries, @IdRes int id) {
+		for (Entry entry : entries) {
+			if (entry.id == id) return entry.name;
+		}
+		return null;
 	}
 
 	private static AddonManager getAddonManager() {

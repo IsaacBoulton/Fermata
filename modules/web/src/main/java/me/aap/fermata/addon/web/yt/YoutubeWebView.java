@@ -41,6 +41,7 @@ public class YoutubeWebView extends FermataWebView {
 					"  window.__fermataQ = null;\n" +
 					"}\n";
 	private YoutubeJsInterface js;
+	private YoutubeMediaEngine engine;
 
 	public YoutubeWebView(Context context) {
 		super(context);
@@ -57,7 +58,17 @@ public class YoutubeWebView extends FermataWebView {
 	@Override
 	protected FermataJsInterface createJsInterface() {
 		MainActivityDelegate a = MainActivityDelegate.get(getContext());
-		return js = new YoutubeJsInterface(this, new YoutubeMediaEngine(this, a));
+		engine = new YoutubeMediaEngine(this, a);
+		return js = new YoutubeJsInterface(this, engine);
+	}
+
+	@Override
+	public void dispose() {
+		if (isDisposed()) return;
+		if (engine != null) engine.detach();
+		engine = null;
+		js = null;
+		super.dispose();
 	}
 
 	@Override
@@ -308,6 +319,7 @@ public class YoutubeWebView extends FermataWebView {
 	}
 
 	private FutureSupplier<Long> getMilliseconds(String value) {
+		if (isDisposed()) return me.aap.utils.async.Completed.completed(0L);
 		Promise<Long> p = new Promise<>();
 		evaluateJavascript(
 				"(function(){var v = document.querySelector('video'); return (v != null) ? v." + value +
@@ -330,6 +342,7 @@ public class YoutubeWebView extends FermataWebView {
 	}
 
 	FutureSupplier<Float> getSpeed() {
+		if (isDisposed()) return me.aap.utils.async.Completed.completed(1f);
 		Promise<Float> p = new Promise<>();
 		evaluateJavascript(
 				"(function(){var v = document.querySelector('video'); return (v != null) ? v" +
@@ -354,6 +367,7 @@ public class YoutubeWebView extends FermataWebView {
 	}
 
 	FutureSupplier<String> getVideoTitle() {
+		if (isDisposed()) return me.aap.utils.async.Completed.completed("");
 		Promise<String> p = new Promise<>();
 		evaluateJavascript("document.title", p::complete);
 		return p;

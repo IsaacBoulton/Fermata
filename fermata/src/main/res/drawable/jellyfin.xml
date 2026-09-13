@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="512dp"
+    android:height="512dp"
+    android:viewportWidth="512"
+    android:viewportHeight="512">
+
+    <!-- Inner Jellyfin shape -->
+    <path
+        android:pathData="M256,196.2
+            C233.6,196.2 161.2,327.5 172.2,349.6
+            C183.2,371.7 329,371.5 339.9,349.6
+            C350.8,327.7 278.6,196.2 256,196.2">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:startX="97.508"
+                android:startY="205.865"
+                android:endX="522.069"
+                android:endY="450.981"
+                android:type="linear">
+                <item
+                    android:offset="0"
+                    android:color="#AA5CC3" />
+                <item
+                    android:offset="1"
+                    android:color="#00A4DC" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- Outer Jellyfin shape -->
+    <path
+        android:pathData="M256,0
+            C188.3,0 -29.8,395.4 3.4,462.2
+            C36.6,529 475.7,528.2 508.6,462.2
+            C541.5,396.2 323.8,0 256,0
+            M421.6,404.3
+            C400,447.5 112.3,448.1 90.5,404.3
+            C68.7,360.5 211.7,101.4 256,101.4
+            C300.3,101.4 443.2,361 421.6,404.3">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:startX="94.193"
+                android:startY="211.606"
+                android:endX="518.754"
+                android:endY="456.722"
+                android:type="linear">
+                <item
+                    android:offset="0"
+                    android:color="#AA5CC3" />
+                <item
+                    android:offset="1"
+                    android:color="#00A4DC" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+</vector>

@@ -24,6 +24,7 @@
 
     <item name="menu" type="id" />
 
+    <item name="drive_home_fragment" type="id" />
     <item name="folders_fragment" type="id" />
     <item name="favorites_fragment" type="id" />
     <item name="playlists_fragment" type="id" />
@@ -32,6 +33,7 @@
     <item name="subtitles_fragment" type="id" />
     <item name="tv_fragment" type="id" />
     <item name="youtube_fragment" type="id" />
+    <item name="jellyfin_fragment" type="id" />
     <item name="web_browser_fragment" type="id" />
     <item name="felex_fragment" type="id" />
     <item name="cast_addon" type="id" />
@@ -43,7 +45,6 @@
     <item name="poi_addon" type="id" />
 
     <item name="nav_got_to_current" type="id" />
-    <item name="nav_donate" type="id" />
     <item name="nav_about" type="id" />
     <item name="nav_exit" type="id" />
     <item name="nav_select" type="id" />
@@ -138,6 +139,11 @@
 
     <item name="car_edit_text" type="id" />
     <item name="share" type="id" />
+
+    <item name="nav_customize" type="id" />
+    <item name="nav_pin" type="id" />
+    <item name="nav_unpin" type="id" />
+    <item name="nav_hide" type="id" />
 
     <item name="auto" type="id" />
 

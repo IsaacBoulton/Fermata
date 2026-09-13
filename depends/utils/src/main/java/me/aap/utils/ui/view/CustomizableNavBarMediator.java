@@ -28,9 +28,6 @@ import static me.aap.utils.ui.UiUtils.ID_NULL;
 import static me.aap.utils.ui.UiUtils.toPx;
 import static me.aap.utils.ui.view.NavBarView.POSITION_BOTTOM;
 
-/**
- * @author Andrey Pavlenko
- */
 public abstract class CustomizableNavBarMediator implements NavBarView.Mediator,
 		View.OnLongClickListener {
 	private final List<NavBarItem> ext = new ArrayList<>();
@@ -144,8 +141,7 @@ public abstract class CustomizableNavBarMediator implements NavBarView.Mediator,
 				int id = i.getId();
 				OverlayMenuItemView item = (OverlayMenuItemView) b.addItem(id,
 						i.getIcon(), i.getText()).setData(i);
-				item.setTextColor(tint);
-				TextViewCompat.setCompoundDrawableTintList(item, tint);
+				applyTint(item, tint);
 				if (id == selectedId) selected = item;
 			}
 
@@ -169,30 +165,26 @@ public abstract class CustomizableNavBarMediator implements NavBarView.Mediator,
 					OverlayMenuItemView item = (OverlayMenuItemView)
 							b.addItem(R.id.left, R.drawable.move_left, R.string.move_left);
 					item.setHandler(i -> swap(nb, btn.getId(), nb.getChildAt(idx - 1).getId()));
-					item.setTextColor(tint);
-					TextViewCompat.setCompoundDrawableTintList(item, tint);
+					applyTint(item, tint);
 				}
 				if (idx != (count - 1)) {
 					OverlayMenuItemView item = (OverlayMenuItemView)
 							b.addItem(R.id.right, R.drawable.move_right, R.string.move_right);
 					item.setHandler(i -> swap(nb, btn.getId(), nb.getChildAt(idx + 1).getId()));
-					item.setTextColor(tint);
-					TextViewCompat.setCompoundDrawableTintList(item, tint);
+					applyTint(item, tint);
 				}
 			} else {
 				if (idx != 0) {
 					OverlayMenuItemView item = (OverlayMenuItemView)
 							b.addItem(R.id.up, R.drawable.move_up, R.string.move_up);
 					item.setHandler(i -> swap(nb, btn.getId(), nb.getChildAt(idx - 1).getId()));
-					item.setTextColor(tint);
-					TextViewCompat.setCompoundDrawableTintList(item, tint);
+					applyTint(item, tint);
 				}
 				if (idx != (count - 1)) {
 					OverlayMenuItemView item = (OverlayMenuItemView)
 							b.addItem(R.id.down, R.drawable.move_down, R.string.move_down);
 					item.setHandler(i -> swap(nb, btn.getId(), nb.getChildAt(idx + 1).getId()));
-					item.setTextColor(tint);
-					TextViewCompat.setCompoundDrawableTintList(item, tint);
+					applyTint(item, tint);
 				}
 			}
 			b.setCloseHandlerHandler(m -> ((ViewGroup) (nb.getParent())).removeView((View) m));
@@ -201,44 +193,50 @@ public abstract class CustomizableNavBarMediator implements NavBarView.Mediator,
 		return true;
 	}
 
-	protected OverlayMenuView createOverlayMenu(NavBarView nb, boolean center) {
-		Context ctx = nb.getContext();
-		ViewGroup parent = (ViewGroup) nb.getParent();
+	private static void applyTint(OverlayMenuItemView item, @Nullable ColorStateList tint) {
+		if (tint == null) return;
+		item.setTextColor(tint);
+		TextViewCompat.setCompoundDrawableTintList(item, tint);
+	}
+
+	protected OverlayMenuView createOverlayMenu(NavBarView navBarView, boolean center) {
+		Context ctx = navBarView.getContext();
+		ViewGroup parent = (ViewGroup) navBarView.getParent();
 		OverlayMenuView menu = new OverlayMenuView(ctx, null);
 		parent.addView(menu);
-		ViewGroup.LayoutParams lp = menu.getLayoutParams();
+		ViewGroup.LayoutParams layoutParams = menu.getLayoutParams();
 		menu.setElevation(toPx(ctx, 10));
-		menu.setBackgroundColor(nb.getBgColor());
+		menu.setBackgroundColor(navBarView.getBgColor());
 
-		if (lp instanceof ConstraintLayout.LayoutParams) {
-			ConstraintLayout.LayoutParams clp = (ConstraintLayout.LayoutParams) lp;
-
-			if (nb.getPosition() == POSITION_BOTTOM) {
+		if (layoutParams instanceof ConstraintLayout.LayoutParams clp) {
+			 // Bottom
+			if (navBarView.getPosition() == POSITION_BOTTOM) {
 				if (center) clp.startToStart = PARENT_ID;
 				clp.endToEnd = PARENT_ID;
-				clp.bottomToTop = nb.getId();
-			} else if (nb.getPosition() == NavBarView.POSITION_LEFT) {
+				clp.bottomToTop = navBarView.getId();
+			} // Left
+			else if (navBarView.getPosition() == NavBarView.POSITION_LEFT) {
 				if (center) clp.topToTop = PARENT_ID;
-				clp.startToEnd = nb.getId();
+				clp.startToEnd = navBarView.getId();
 				clp.bottomToBottom = PARENT_ID;
-			} else {
+			}// Right
+			else {
 				if (center) clp.topToTop = PARENT_ID;
-				clp.endToStart = nb.getId();
+				clp.endToStart = navBarView.getId();
 				clp.bottomToBottom = PARENT_ID;
 			}
-
 			clp.resolveLayoutDirection(LAYOUT_DIRECTION_LTR);
 		}
 
-		lp.height = WRAP_CONTENT;
-		lp.width = WRAP_CONTENT;
+		layoutParams.height = WRAP_CONTENT;
+		layoutParams.width = WRAP_CONTENT;
 		return menu;
 	}
 
 	protected boolean extItemSelected(OverlayMenuItem item) {
-		NavBarItem i = item.getData();
-		NavButtonView.Ext ext = setExtButton(null, i);
-		itemSelected(ext, i.getId(), ActivityDelegate.get(ext.getContext()));
+		NavBarItem navItem = item.getData();
+		NavButtonView.Ext ext = setExtButton(null, navItem);
+		itemSelected(ext, navItem.getId(), ActivityDelegate.get(ext.getContext()));
 		return true;
 	}
 

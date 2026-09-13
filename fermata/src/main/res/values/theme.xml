@@ -7,19 +7,43 @@
     <attr name="appEqualizerStyle" format="reference" />
     <attr name="appStreamProgressStyle" format="reference" />
     <attr name="appVideoInfoStyle" format="reference" />
+    <attr name="appSurfaceContainer" format="color|reference" />
+    <attr name="appSurfaceContainerHigh" format="color|reference" />
+    <attr name="appOutline" format="color|reference" />
+    <attr name="appOnSurfaceMuted" format="color|reference" />
 
     <style name="AppTheme" parent="Theme.Utils.Base">
         <item name="android:forceDarkAllowed" tools:targetApi="q">true</item>
         <item name="android:isLightTheme" tools:targetApi="q">false</item>
         <item name="android:navigationBarColor">?attr/colorPrimary</item>
+        <item name="android:statusBarColor">?attr/colorPrimaryDark</item>
+        <item name="android:windowLightNavigationBar">false</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:enforceNavigationBarContrast" tools:targetApi="q">false</item>
         <item name="android:windowBackground">@drawable/app_background</item>
+        <item name="toolbarStyle">@style/AppTheme.ToolBarStyle</item>
+        <item name="bottomNavigationStyle">@style/AppTheme.NavBarStyle</item>
         <item name="appMediaItemStyle">@style/AppTheme.MediaItemStyle</item>
         <item name="appControlPanelStyle">@style/AppTheme.ControlPanelStyle</item>
         <item name="appSeekBarStyle">@style/AppTheme.SeekBarStyle</item>
         <item name="appEqualizerStyle">@style/AppTheme.EqualizerStyle</item>
         <item name="appStreamProgressStyle">@style/AppTheme.StreamProgressStyle</item>
         <item name="appVideoInfoStyle">@style/AppTheme.VideoInfoStyle</item>
-        <item name="cornerRadius">5dp</item>
+        <item name="appSurfaceContainer">?attr/colorSecondary</item>
+        <item name="appSurfaceContainerHigh">?attr/colorSecondaryVariant</item>
+        <item name="appOutline">?attr/boxStrokeColor</item>
+        <item name="appOnSurfaceMuted">?android:attr/textColorHint</item>
+        <item name="cornerRadius">14dp</item>
+    </style>
+
+    <style name="AppTheme.ToolBarStyle" parent="Theme.Utils.Base.ToolBarStyle">
+        <item name="size">52dp</item>
+        <item name="android:colorBackground">?attr/colorPrimary</item>
+    </style>
+
+    <style name="AppTheme.NavBarStyle" parent="Theme.Utils.Base.NavBarStyle">
+        <item name="size">@dimen/nav_bar_size</item>
+        <item name="android:colorBackground">?attr/colorPrimary</item>
     </style>
 
     <style name="AppTheme.MediaItemStyle">
@@ -30,13 +54,13 @@
         <item name="android:textColor">@color/media_item_text_color</item>
         <item name="tint">@color/media_item_tint</item>
         <item name="indicatorColor">@color/media_item_tint</item>
-        <item name="elevation">20dp</item>
+        <item name="elevation">0dp</item>
     </style>
 
     <style name="AppTheme.ControlPanelStyle">
         <item name="size">70dp</item>
         <item name="tint">?attr/colorOnPrimary</item>
-        <item name="android:colorBackground">?attr/colorPrimary</item>
+        <item name="android:colorBackground">?attr/appSurfaceContainer</item>
         <item name="textAppearance">@style/AppTheme.ControlPanelTextAppearance</item>
     </style>
 

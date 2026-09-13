@@ -223,7 +223,6 @@ public class MediaSessionCallback extends MediaSessionCompat.Callback
 
 		currentState = new PlaybackStateCompat.Builder().setActions(SUPPORTED_ACTIONS).build();
 		setPlaybackState(currentState);
-		session.setActive(true);
 
 		audioManager = (AudioManager) ctx.getSystemService(Context.AUDIO_SERVICE);
 
@@ -1279,6 +1278,9 @@ public class MediaSessionCallback extends MediaSessionCompat.Callback
 
 	private void setPlaybackState(PlaybackStateCompat state) {
 		currentState = state;
+		int playbackState = state.getState();
+		session.setActive((playbackState != STATE_NONE) && (playbackState != STATE_STOPPED) &&
+				(playbackState != STATE_ERROR));
 		session.setPlaybackState(state);
 		service.updateNotification(state.getState(), getCurrentItem());
 		fireBroadcastEvent(l -> l.onPlaybackStateChanged(this, state));

@@ -57,6 +57,8 @@ class YoutubeMediaEngine implements MediaEngine, OverlayMenu.SelectionHandler {
 	private YoutubeItem current;
 	private String qualityUrl;
 	private boolean ignorePause;
+	private boolean detached;
+	private long lastPosition;
 
 	public YoutubeMediaEngine(YoutubeWebView web, MainActivityDelegate a) {
 		this.web = web;
@@ -74,6 +76,7 @@ class YoutubeMediaEngine implements MediaEngine, OverlayMenu.SelectionHandler {
 	}
 
 	void playing(String url) {
+		if (detached) return;
 		if (BuildConfig.AUTO && web.getAddon().skipAd()) {
 			web.loadUrl("javascript:\n" +
 					"if (document.querySelectorAll('.ad-showing').length > 0) {\n" +
@@ -95,12 +98,14 @@ class YoutubeMediaEngine implements MediaEngine, OverlayMenu.SelectionHandler {
 	}
 
 	void ended() {
+		if (detached) return;
 		current = end;
 		qualityUrl = null;
 		cb.onEngineEnded(this);
 	}
 
 	void paused() {
+		if (detached) return;
 		ignorePause = true;
 		cb.onPause();
 		ignorePause = false;
@@ -113,6 +118,7 @@ class YoutubeMediaEngine implements MediaEngine, OverlayMenu.SelectionHandler {
 
 	@Override
 	public void prepare(PlayableItem source) {
+		if (detached) return;
 		if (source == next) {
 			web.next();
 		} else if (source == prev) {
@@ -124,7 +130,7 @@ class YoutubeMediaEngine implements MediaEngine, OverlayMenu.SelectionHandler {
 
 	@Override
 	public void start() {
-		web.play();
+		if (!detached) web.play();
 	}
 
 	@Override
@@ -132,12 +138,12 @@ class YoutubeMediaEngine implements MediaEngine, OverlayMenu.SelectionHandler {
 		if ((current == null) || (current == end)) return;
 		current = null;
 		qualityUrl = null;
-		web.stop();
+		if (!detached) web.stop();
 	}
 
 	@Override
 	public void pause() {
-		if (!ignorePause) web.pause();
+		if (!detached && !ignorePause) web.pause();
 	}
 
 	@Override
@@ -147,27 +153,32 @@ class YoutubeMediaEngine implements MediaEngine, OverlayMenu.SelectionHandler {
 
 	@Override
 	public FutureSupplier<Long> getDuration() {
-		return web.getDuration();
+		return detached ? completed(0L) : web.getDuration();
 	}
 
 	@Override
 	public FutureSupplier<Long> getPosition() {
-		return web.getPosition();
+		if (detached) return completed(lastPosition);
+		return web.getPosition().map(position -> {
+			lastPosition = position;
+			return position;
+		});
 	}
 
 	@Override
 	public void setPosition(long position) {
-		web.setPosition(position);
+		lastPosition = position;
+		if (!detached) web.setPosition(position);
 	}
 
 	@Override
 	public FutureSupplier<Float> getSpeed() {
-		return web.getSpeed();
+		return detached ? completed(1f) : web.getSpeed();
 	}
 
 	@Override
 	public void setSpeed(float speed) {
-		web.setSpeed(speed);
+		if (!detached) web.setSpeed(speed);
 	}
 
 	@Override
@@ -186,6 +197,13 @@ class YoutubeMediaEngine implements MediaEngine, OverlayMenu.SelectionHandler {
 
 	@Override
 	public void close() {
+		detached = true;
+	}
+
+	void detach() {
+		if (detached) return;
+		detached = true;
+		if (cb.getEngine() == this) cb.onStop();
 	}
 
 	@Override

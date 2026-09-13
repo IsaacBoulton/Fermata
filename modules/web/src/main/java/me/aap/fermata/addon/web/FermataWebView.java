@@ -15,6 +15,7 @@ import static me.aap.fermata.addon.web.FermataJsInterface.JS_EVENT;
 import android.annotation.SuppressLint;
 import android.content.Context;
 import android.content.res.Configuration;
+import android.net.Uri;
 import android.text.Editable;
 import android.util.AttributeSet;
 import android.view.KeyEvent;
@@ -22,6 +23,7 @@ import android.view.MotionEvent;
 import android.view.View;
 import android.view.inputmethod.EditorInfo;
 import android.webkit.CookieManager;
+import android.webkit.ValueCallback;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.widget.EditText;
@@ -59,6 +61,9 @@ public class FermataWebView extends WebView
 	private WebBrowserAddon addon;
 	private FermataWebClient webClient;
 	private FermataChromeClient chrome;
+	private FermataJsInterface jsInterface;
+	private boolean jsInterfaceAttached;
+	private boolean disposed;
 
 	public FermataWebView(Context context) {
 		this(context, null);
@@ -87,14 +92,16 @@ public class FermataWebView extends WebView
 		s.setDisplayZoomControls(false);
 		s.setDatabaseEnabled(true);
 		s.setDomStorageEnabled(true);
-		s.setAllowFileAccess(true);
+		s.setAllowFileAccess(addon.isFileAccessAllowed());
+		s.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
+		if (VERSION.SDK_INT >= VERSION_CODES.O) s.setSafeBrowsingEnabled(true);
 		s.setLoadWithOverviewMode(true);
 		s.setJavaScriptEnabled(true);
 		s.setMediaPlaybackRequiresUserGesture(false);
-		s.setJavaScriptCanOpenWindowsAutomatically(true);
+		s.setJavaScriptCanOpenWindowsAutomatically(false);
 
-		addJavascriptInterface(createJsInterface(), FermataJsInterface.NAME);
-		CookieManager.getInstance().setAcceptThirdPartyCookies(this, true);
+		jsInterface = createJsInterface();
+		CookieManager.getInstance().setAcceptThirdPartyCookies(this, addon.acceptThirdPartyCookies());
 
 		addon.getPreferenceStore().addBroadcastListener(this);
 		getActivity().onSuccess(a -> a.addBroadcastListener(this));
@@ -195,6 +202,69 @@ public class FermataWebView extends WebView
 		return new FermataJsInterface(this);
 	}
 
+	@Override
+	public void loadUrl(@NonNull String url) {
+		if (disposed) return;
+		if (!url.startsWith("javascript:")) {
+			Uri uri = Uri.parse(url);
+			if (!getAddon().isNavigationAllowed(uri)) {
+				Log.e("Blocked unsupported web navigation: ", uri);
+				navigationBlocked(uri);
+				return;
+			}
+			configureJavascriptInterface(uri);
+		}
+		super.loadUrl(url);
+	}
+
+	@Override
+	public void evaluateJavascript(@NonNull String script,
+			@Nullable ValueCallback<String> resultCallback) {
+		if (disposed) {
+			if (resultCallback != null) resultCallback.onReceiveValue("null");
+			return;
+		}
+		super.evaluateJavascript(script, resultCallback);
+	}
+
+	void pageStarted(String url) {
+		configureJavascriptInterface(Uri.parse(url));
+	}
+
+	private void configureJavascriptInterface(Uri uri) {
+		boolean allow = (jsInterface != null) && getAddon().isJavascriptBridgeAllowed(uri);
+		if (allow == jsInterfaceAttached) return;
+		if (allow) addJavascriptInterface(jsInterface, FermataJsInterface.NAME);
+		else removeJavascriptInterface(FermataJsInterface.NAME);
+		jsInterfaceAttached = allow;
+	}
+
+	/** Releases listeners and native WebView resources when its fragment view is discarded. */
+	public void dispose() {
+		if (disposed) return;
+		disposed = true;
+		if (addon != null) addon.getPreferenceStore().removeBroadcastListener(this);
+		getActivity().onSuccess(a -> a.removeBroadcastListener(this));
+		removeJavascriptInterface(FermataJsInterface.NAME);
+		jsInterfaceAttached = false;
+		stopLoading();
+		setWebChromeClient((FermataChromeClient) null);
+		super.setWebViewClient(null);
+		destroy();
+	}
+
+	protected final boolean isDisposed() {
+		return disposed;
+	}
+
+	void pageLoadFailed(CharSequence description) {
+		UiUtils.showAlert(getContext(), getContext().getString(R.string.web_page_load_failed, description));
+	}
+
+	void navigationBlocked(Uri uri) {
+		UiUtils.showAlert(getContext(), getContext().getString(R.string.web_navigation_blocked, uri));
+	}
+
 	protected boolean isCar() {
 		return BuildConfig.AUTO && isCar;
 	}
@@ -262,7 +332,7 @@ public class FermataWebView extends WebView
 	}
 
 	private void checkTextInput() {
-		if (!BuildConfig.AUTO || isKeyboardActive()) return;
+		if (!BuildConfig.AUTO || !jsInterfaceAttached || isKeyboardActive()) return;
 
 		Log.d("checkTextInput");
 		loadUrl("javascript:\n" + "function checkInput() {\n" + "  var e =  document.activeElement;" +
@@ -273,11 +343,12 @@ public class FermataWebView extends WebView
 	}
 
 	private void setTextInput(CharSequence text) {
-		if (!BuildConfig.AUTO) return;
+		if (!BuildConfig.AUTO || !jsInterfaceAttached) return;
 
-		Log.d(text);
+		Log.d("Updating web text input");
 		loadUrl(
-				"javascript:\n" + "var e =  document.activeElement;\n" + "var text = '" + text + "';\n" +
+				"javascript:\n" + "var e =  document.activeElement;\n" + "var text = " +
+						WebSecurity.quoteJs(text) + ";\n" +
 						"if (e.isContentEditable) e.innerText = text;\n" + "else e.value = text;\n" +
 						"e.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true }));\n" +
 						"e.dispatchEvent(new KeyboardEvent('keypress', { bubbles: true }));\n" +

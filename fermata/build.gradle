@@ -6,7 +6,8 @@ android {
         applicationId project.getProperties().getOrDefault('APP_ID', 'me.aap.fermata')
         versionCode VERSION_CODE
         versionName VERSION_NAME
-        base.archivesName = "fermata-$versionName"
+        def profileSuffix = (gradle.ext.moduleProfile == 'full') ? '' : "-${gradle.ext.moduleProfile}"
+        base.archivesName = "fermata-$versionName$profileSuffix"
 
         ndk {
             //noinspection ChromeOsAbiSupport

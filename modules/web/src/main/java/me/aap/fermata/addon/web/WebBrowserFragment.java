@@ -80,8 +80,10 @@ public class WebBrowserFragment extends MainActivityFragment
 
 	@Override
 	public void onDestroyView() {
+		FermataWebView webView = getWebView();
 		MainActivityDelegate.getActivityDelegate(requireContext()).onSuccess(this::unregisterListeners);
 		super.onDestroyView();
+		if (webView != null) webView.dispose();
 	}
 
 	@Override

@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:state_selected="true">
+        <layer-list>
+            <item
+                android:width="@dimen/nav_item_background_size"
+                android:height="@dimen/nav_item_background_size"
+                android:gravity="center">
+                <shape android:shape="oval">
+                    <solid android:color="?attr/appSurfaceContainerHigh" />
+                </shape>
+            </item>
+        </layer-list>
+    </item>
+    <item android:state_focused="true">
+        <layer-list>
+            <item
+                android:width="@dimen/nav_item_background_size"
+                android:height="@dimen/nav_item_background_size"
+                android:gravity="center">
+                <shape android:shape="oval">
+                    <solid android:color="?attr/appSurfaceContainerHigh" />
+                    <stroke
+                        android:width="@dimen/nav_item_focus_stroke"
+                        android:color="?attr/colorAccent" />
+                </shape>
+            </item>
+        </layer-list>
+    </item>
+    <item>
+        <layer-list>
+            <item
+                android:width="@dimen/nav_item_background_size"
+                android:height="@dimen/nav_item_background_size"
+                android:gravity="center">
+                <shape android:shape="oval">
+                    <solid android:color="?attr/appSurfaceContainer" />
+                </shape>
+            </item>
+        </layer-list>
+    </item>
+</selector>

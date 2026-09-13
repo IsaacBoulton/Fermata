@@ -11,33 +11,39 @@
 
         <!-- Tool/Nav bars -->
         <item name="colorPrimary">#000000</item>
-        <item name="colorOnPrimary">#FFFFFF</item>
+        <item name="colorOnPrimary">#F5F7FA</item>
         <item name="android:textColorPrimary">#FFFFFF</item>
 
         <!-- List/Media items -->
-        <item name="colorSecondary">#000000</item>
-        <item name="colorOnSecondary">#6A6A6A</item>
-        <item name="android:textColorSecondary">#FFFFFF</item>
-        <item name="boxStrokeColor">#6A6A6A</item>
+        <item name="colorSecondary">#101214</item>
+        <item name="colorOnSecondary">#E3E7EC</item>
+        <item name="android:textColorSecondary">#E8EBEF</item>
+        <item name="boxStrokeColor">#30353B</item>
 
         <!-- Active media item -->
-        <item name="alpha">0.7</item>
-        <item name="colorSecondaryVariant">#6A6A6A</item>
+        <item name="alpha">1</item>
+        <item name="colorSecondaryVariant">#20252B</item>
         <item name="android:textColorTertiary">#FFFFFF</item>
 
         <!-- Popup menu -->
-        <item name="colorSurface">#242424</item>
-        <item name="colorOnSurface">#FFFFFF</item>
-        <item name="colorPrimarySurface">#000000</item>
+        <item name="colorSurface">#08090A</item>
+        <item name="colorOnSurface">#F5F7FA</item>
+        <item name="colorPrimarySurface">#20252B</item>
         <item name="colorOnPrimarySurface">#FFFFFF</item>
 
-        <item name="colorAccent">#FFFFFF</item>
-        <item name="rippleColor">#6A6A6A</item>
+        <item name="colorAccent">#86C4FF</item>
+        <item name="rippleColor">#35495D</item>
 
-        <item name="android:textColorHint">#6A6A6A</item>
+        <item name="android:textColorHint">#929AA3</item>
 
-        <item name="colorControlNormal">#FFFFFF</item>
-        <item name="colorControlActivated">#FFFFFF</item>
+        <item name="colorControlNormal">#D8DEE5</item>
+        <item name="colorControlActivated">#86C4FF</item>
+
+        <item name="appSurfaceContainer">#101214</item>
+        <item name="appSurfaceContainerHigh">#20252B</item>
+        <item name="appOutline">#30353B</item>
+        <item name="appOnSurfaceMuted">#929AA3</item>
+        <item name="cornerRadius">14dp</item>
 
     </style>
 
